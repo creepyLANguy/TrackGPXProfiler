@@ -7,9 +7,9 @@ using System.Drawing.Imaging;
 
 namespace TryGPX
 {
-  internal class Point
+  internal class MyPoint
   {
-    public Point(double lon, double lat, double ele)
+    public MyPoint(double lon, double lat, double ele)
     {
       this.lon = lon;
       this.lat = lat;
@@ -26,7 +26,7 @@ namespace TryGPX
 
     private static int heightmapMaxValue_z = 255;
 
-    private static bool verbose = false;
+    private static bool verbose = true;
 
     static int Main(string[] args)
     {
@@ -67,12 +67,16 @@ namespace TryGPX
 
       Console.WriteLine("\r\nPrecision lost in pixels: " + (outputImageWidth - newOutputImageWidth));
 
+      Console.WriteLine("\r\nCalculating final points to draw onto bitmap...");
+      var finalDrawingPoints = GetFinalDrawingPoints(scaledDistances, scaledElevations, minThresh, maxThresh);
+
       Console.WriteLine("\r\nDrawing image...");
-      var image = DrawImage(scaledElevations, scaledDistances, newOutputImageWidth, minThresh, maxThresh);
+      var image = DrawImage(finalDrawingPoints, scaledDistances, newOutputImageWidth);//, minThresh, maxThresh);
 
       string outputFileName = Guid.NewGuid() + ".bmp";
       Console.WriteLine("\r\nSaving image as \'" + outputFileName + "\'...");
       SaveImage(image, outputFileName);
+      Console.WriteLine("\r\nSaved " + outputFileName);
 
       return 1;
     }
@@ -82,9 +86,9 @@ namespace TryGPX
       image.Save(outputFileName, ImageFormat.Bmp);
     }
 
-    private static Bitmap DrawImage(List<double> scaledElevations, List<int> distances, int imageWidth, int minThresh, int maxThresh)
+    private static Bitmap DrawImage(List<Point> points, List<int> distances, int imageWidth)//, int minThresh, int maxThresh)
     {
-      int imageHeight = heightmapMaxValue_z + 1 + minThresh + maxThresh;
+      var imageHeight = heightmapMaxValue_z + 1;//+ minThresh + maxThresh;
 
       var bmp = new Bitmap(imageWidth, imageHeight);
       var gfx = Graphics.FromImage(bmp);
@@ -94,9 +98,28 @@ namespace TryGPX
 
       //AL.
       //TODO
-      //Paint all points and connect with bresenham.
+      //Paint all points and connect with bresenham or bezier.
 
       return bmp;
+    }
+
+    private static List<Point> GetFinalDrawingPoints(List<int> scaledDistances, List<int> scaledElevations, int minThresh, int maxThresh)
+    {
+      var finalPoints = new List<Point>();
+
+      finalPoints.Add(new Point(0, scaledElevations[0]));
+
+      for (int i = 1; i < scaledElevations.Count; ++i)
+      {
+        int x = scaledDistances[i-1] + finalPoints[i -1].X;
+        int y = scaledElevations[i];
+
+        finalPoints.Add(new Point(x, y));       
+      }
+
+      if (verbose){foreach (var p in finalPoints){if (verbose) { Console.WriteLine("x : " + p.X + " , y : " + p.Y); }}}
+
+      return finalPoints;
     }
 
     private static int GetNewOutputImageWidthFromScaledDistances(List<int> scaledDistances)
@@ -124,14 +147,14 @@ namespace TryGPX
       return adjustedDistances;
     }
 
-    private static List<double> GetDistancesFromPoints(List<Point> points, int scale = 1000000)
+    private static List<double> GetDistancesFromPoints(List<MyPoint> points, int scale = 1000000)
     {
       var distances = new List<double>();
 
-      for (int i = 0; i < points.Count-1; i+=2)
+      for (int i = 0; i < points.Count-1; ++i)
       {
-        Point p1 = points[i];
-        Point p2 = points[i+1];
+        MyPoint p1 = points[i];
+        MyPoint p2 = points[i+1];
 
         double latDiffSq = Math.Pow(p2.lat - p1.lat, 2);
         double lonDiffSq = Math.Pow(p2.lon - p1.lon, 2);
@@ -146,9 +169,9 @@ namespace TryGPX
       return distances;
     }
 
-    private static List<double> ScaleElevationsToHeightmap(List<double> adjustedElevations, Tuple<double, double> minMaxElevation)
+    private static List<int> ScaleElevationsToHeightmap(List<double> adjustedElevations, Tuple<double, double> minMaxElevation)
     {
-      var scaledElevations = new List<double>();
+      var scaledElevations = new List<int>();
 
       double maxAchievableElevation = minMaxElevation.Item2 - minMaxElevation.Item1;
 
@@ -156,7 +179,7 @@ namespace TryGPX
       {
         double d = (e / maxAchievableElevation) * heightmapMaxValue_z;
 
-        scaledElevations.Add(d);
+        scaledElevations.Add((int)d);
 
         if (verbose){Console.WriteLine(d);}
       }
@@ -164,7 +187,7 @@ namespace TryGPX
       return scaledElevations;
     }
 
-    private static List<double> ReduceAllPointsByMinElevation(List<Point> points, double min)
+    private static List<double> ReduceAllPointsByMinElevation(List<MyPoint> points, double min)
     {
       var adjustedElevations = new List<double>();
 
@@ -180,9 +203,9 @@ namespace TryGPX
       return adjustedElevations;
     }
 
-    private static List<Point> ReadPointsFromFile(string filename)
+    private static List<MyPoint> ReadPointsFromFile(string filename)
     {
-      var points = new List<Point>();
+      var points = new List<MyPoint>();
 
       string[] lines = File.ReadAllLines("try.gpx");
       for (int i = 0; i < lines.Length; ++i)
@@ -207,14 +230,14 @@ namespace TryGPX
           ele = ele.Substring(ele.IndexOf("<ele>") + eleLabel.Length);
           ele = ele.Substring(0, ele.IndexOf('<'));
 
-          points.Add(new Point(double.Parse(lon), double.Parse(lat), double.Parse(ele)));
+          points.Add(new MyPoint(double.Parse(lon), double.Parse(lat), double.Parse(ele)));
         }
       }
 
       return points;
     }
 
-    private static void PrintAllPoints(List<Point> points)
+    private static void PrintAllPoints(List<MyPoint> points)
     {
       foreach (var p in points)
       {
@@ -225,7 +248,7 @@ namespace TryGPX
       }
     }
 
-    private static Tuple<double, double> GetMinMaxElevationFromPoints(List<Point> points)
+    private static Tuple<double, double> GetMinMaxElevationFromPoints(List<MyPoint> points)
     {
       var pMin = points.Aggregate((curMin, x) => (x.ele < curMin.ele ? x : curMin));
       var pMax= points.Aggregate((curMax, x) => (x.ele > curMax.ele ? x : curMax));
