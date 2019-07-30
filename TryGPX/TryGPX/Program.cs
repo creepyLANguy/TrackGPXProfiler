@@ -29,8 +29,8 @@ namespace TryGPX
     static int Main(string[] args)
     {
       const string filename = "try.gpx";
-      var minThresh = 0;
-      var maxThresh = 0;
+      int minThresh = 0;
+      int maxThresh = 0;
       int outputImageWidth = 2560;   
       bool verboseMessages = verbose; //AL. change to what the caller passes in.
 
@@ -65,20 +65,22 @@ namespace TryGPX
 
       Console.WriteLine("\r\nPrecision lost in pixels: " + (outputImageWidth - newOutputImageWidth));
 
-      //AL.
-      //var image = DrawImage(scaledElevations, scaledDistances, newOutputImageWidth);
-      //var paddedImage = PadImage(image, minThresh, maxThresh); 
+      Console.WriteLine("\r\nDrawing image...");
+      var image = DrawImage(scaledElevations, scaledDistances, newOutputImageWidth, minThresh, maxThresh);
+
+      string outputFileName = DateTime.Now + ".bmp";
+      Console.WriteLine("\r\nSaving image as \'" + outputFileName + "\'...");
+      SaveImage(image, outputFileName);
 
       return 1;
     }
 
-    private static object PadImage(object drawImage, int minThresh, int maxThresh)
+    private static void SaveImage(object image, string outputFileName)
     {
-      //AL.
       throw new NotImplementedException();
     }
 
-    private static object DrawImage(List<double> scaledElevations, List<int> distances, int imageWidth)
+    private static object DrawImage(List<double> scaledElevations, List<int> distances, int imageWidth, int minThresh, int maxThresh)
     {
       //AL.
       throw new NotImplementedException();
