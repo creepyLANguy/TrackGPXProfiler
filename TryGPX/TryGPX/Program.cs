@@ -7,16 +7,16 @@ namespace TryGPX
 {
   internal class Point
   {
-    public Point(decimal lon, decimal lat, decimal ele)
+    public Point(double lon, double lat, double ele)
     {
       this.lon = lon;
       this.lat = lat;
       this.ele = ele;
     }
 
-    public decimal lat;
-    public decimal lon;
-    public decimal ele;
+    public double lat;
+    public double lon;
+    public double ele;
   }
 
   class Program
@@ -24,18 +24,19 @@ namespace TryGPX
 
     private static int heightmapMaxValue_z = 255;
 
-    private static bool verbose = true;
+    private static bool verbose = false;
 
     static int Main(string[] args)
     {
       const string filename = "try.gpx";
       var minThresh = 0;
       var maxThresh = 0;
-      int outputWidth = 1000;   
+      int outputImageWidth = 2560;   
       bool verboseMessages = verbose; //AL. change to what the caller passes in.
 
       verbose = verboseMessages;
 
+      Console.WriteLine("\r\nReading points from \'" + filename + "\'...");
       var points = ReadPointsFromFile(filename);
       if (points.Count == 0)
       {
@@ -44,21 +45,29 @@ namespace TryGPX
       }
       if (verbose){PrintAllPoints(points);}
 
-      Console.WriteLine("Getting min/max elevations... \r\n");
+      Console.WriteLine("\r\nGetting min/max elevations...");
       var minMaxElevation = GetMinMaxElevationFromPoints(points);
 
-      Console.WriteLine("Adjusting elevations to zero base...  \r\n");
+      Console.WriteLine("\r\nAdjusting elevations to zero base...");
       var adjustedElevations = ReduceAllPointsByMinElevation(points, minMaxElevation.Item1);
 
-      Console.WriteLine("Scaling elevations to heightmap resolution...  \r\n");
+      Console.WriteLine("\r\nScaling elevations to heightmap resolution...");
       var scaledElevations = ScaleElevationsToHeightmap(adjustedElevations, minMaxElevation);
 
-      Console.WriteLine("Calculating distances between points... \r\n");
-      //AL.
-      //var distances = GetDistancesFromPoints(points);
+      Console.WriteLine("\r\nCalculating distances between points...");     
+      var distances = GetDistancesFromPoints(points, 1000000);
+
+      Console.WriteLine("\r\nScaling distances to output image width...");     
+      var scaledDistances = ScaleDistancesToOutputImageWidth(distances, outputImageWidth);
+
+      Console.WriteLine("\r\nDetermining new output image width from scaled distances...");
+      int newOutputImageWidth = GetNewOutputImageWidthFromScaledDistances(scaledDistances);
+
+      Console.WriteLine("\r\nPrecision lost in pixels: " + (outputImageWidth - newOutputImageWidth));
 
       //AL.
-      //var image = PadImage(DrawImage(scaledElevations, distances), minThresh, maxThresh); 
+      //var image = DrawImage(scaledElevations, scaledDistances, newOutputImageWidth);
+      //var paddedImage = PadImage(image, minThresh, maxThresh); 
 
       return 1;
     }
@@ -69,31 +78,68 @@ namespace TryGPX
       throw new NotImplementedException();
     }
 
-    private static object DrawImage(List<decimal> scaledElevations, List<decimal> distances)
+    private static object DrawImage(List<double> scaledElevations, List<int> distances, int imageWidth)
     {
       //AL.
       throw new NotImplementedException();
     }
 
-    private static List<decimal> GetDistancesFromPoints(List<Point> points)
+    private static int GetNewOutputImageWidthFromScaledDistances(List<int> scaledDistances)
     {
-      var distances = new List<decimal>();
+      int sum = scaledDistances.Sum();
+      if (verbose) { Console.WriteLine(sum); }
+      return sum;
+    }
 
-      //AL.
-      throw new NotImplementedException();
+    private static List<int> ScaleDistancesToOutputImageWidth(List<double> distances, int outputImageWidth)
+    {
+      double sumDistances = distances.Sum();
+
+      var adjustedDistances = new List<int>();
+
+      foreach (var d in distances)
+      {
+        var a = (d / sumDistances) * outputImageWidth;
+
+        adjustedDistances.Add((int)a);
+
+        if (verbose) { Console.WriteLine(a); }
+      }
+
+      return adjustedDistances;
+    }
+
+    private static List<double> GetDistancesFromPoints(List<Point> points, int scale = 1000000)
+    {
+      var distances = new List<double>();
+
+      for (int i = 0; i < points.Count-1; i+=2)
+      {
+        Point p1 = points[i];
+        Point p2 = points[i+1];
+
+        double latDiffSq = Math.Pow(p2.lat - p1.lat, 2);
+        double lonDiffSq = Math.Pow(p2.lon - p1.lon, 2);
+
+        double d = Math.Sqrt(latDiffSq+lonDiffSq) * scale;
+
+        distances.Add(d);
+
+        if (verbose) { Console.WriteLine(d); }
+      }
 
       return distances;
     }
 
-    private static List<decimal> ScaleElevationsToHeightmap(List<decimal> adjustedElevations, Tuple<decimal, decimal> minMaxElevation)
+    private static List<double> ScaleElevationsToHeightmap(List<double> adjustedElevations, Tuple<double, double> minMaxElevation)
     {
-      var scaledElevations = new List<decimal>();
+      var scaledElevations = new List<double>();
 
-      decimal maxAchievableElevation = minMaxElevation.Item2 - minMaxElevation.Item1;
+      double maxAchievableElevation = minMaxElevation.Item2 - minMaxElevation.Item1;
 
       foreach (var e in adjustedElevations)
       {
-        decimal d = (e / maxAchievableElevation) * heightmapMaxValue_z;
+        double d = (e / maxAchievableElevation) * heightmapMaxValue_z;
 
         scaledElevations.Add(d);
 
@@ -103,9 +149,9 @@ namespace TryGPX
       return scaledElevations;
     }
 
-    private static List<decimal> ReduceAllPointsByMinElevation(List<Point> points, decimal min)
+    private static List<double> ReduceAllPointsByMinElevation(List<Point> points, double min)
     {
-      var adjustedElevations = new List<decimal>();
+      var adjustedElevations = new List<double>();
 
       foreach (var p in points)
       {
@@ -121,7 +167,7 @@ namespace TryGPX
 
     private static List<Point> ReadPointsFromFile(string filename)
     {
-      List<Point> points = new List<Point>();
+      var points = new List<Point>();
 
       string[] lines = File.ReadAllLines("try.gpx");
       for (int i = 0; i < lines.Length; ++i)
@@ -146,7 +192,7 @@ namespace TryGPX
           ele = ele.Substring(ele.IndexOf("<ele>") + eleLabel.Length);
           ele = ele.Substring(0, ele.IndexOf('<'));
 
-          points.Add(new Point(Decimal.Parse(lon), Decimal.Parse(lat), Decimal.Parse(ele)));
+          points.Add(new Point(double.Parse(lon), double.Parse(lat), double.Parse(ele)));
         }
       }
 
@@ -164,14 +210,14 @@ namespace TryGPX
       }
     }
 
-    private static Tuple<decimal, decimal> GetMinMaxElevationFromPoints(List<Point> points)
+    private static Tuple<double, double> GetMinMaxElevationFromPoints(List<Point> points)
     {
       var pMin = points.Aggregate((curMin, x) => (x.ele < curMin.ele ? x : curMin));
       var pMax= points.Aggregate((curMax, x) => (x.ele > curMax.ele ? x : curMax));
 
       if (verbose){Console.WriteLine("Min Ele: " + pMin);Console.WriteLine("Max Ele: " + pMax + "\r\n");}
 
-      return new Tuple<decimal, decimal>(pMin.ele, pMax.ele);
+      return new Tuple<double, double>(pMin.ele, pMax.ele);
     }
   }
 }
