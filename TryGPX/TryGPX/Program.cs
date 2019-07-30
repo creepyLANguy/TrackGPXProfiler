@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Drawing;
+using System.Drawing.Imaging;
 
 namespace TryGPX
 {
@@ -68,22 +70,33 @@ namespace TryGPX
       Console.WriteLine("\r\nDrawing image...");
       var image = DrawImage(scaledElevations, scaledDistances, newOutputImageWidth, minThresh, maxThresh);
 
-      string outputFileName = DateTime.Now + ".bmp";
+      string outputFileName = Guid.NewGuid() + ".bmp";
       Console.WriteLine("\r\nSaving image as \'" + outputFileName + "\'...");
       SaveImage(image, outputFileName);
 
       return 1;
     }
 
-    private static void SaveImage(object image, string outputFileName)
+    private static void SaveImage(Bitmap image, string outputFileName)
     {
-      throw new NotImplementedException();
+      image.Save(outputFileName, ImageFormat.Bmp);
     }
 
-    private static object DrawImage(List<double> scaledElevations, List<int> distances, int imageWidth, int minThresh, int maxThresh)
+    private static Bitmap DrawImage(List<double> scaledElevations, List<int> distances, int imageWidth, int minThresh, int maxThresh)
     {
+      int imageHeight = heightmapMaxValue_z + 1 + minThresh + maxThresh;
+
+      var bmp = new Bitmap(imageWidth, imageHeight);
+      var gfx = Graphics.FromImage(bmp);
+
+      //Paint whole bitmap white. 
+      gfx.FillRectangle(Brushes.White, 0, 0, imageWidth, imageHeight);     
+
       //AL.
-      throw new NotImplementedException();
+      //TODO
+      //Paint all points and connect with bresenham.
+
+      return bmp;
     }
 
     private static int GetNewOutputImageWidthFromScaledDistances(List<int> scaledDistances)
