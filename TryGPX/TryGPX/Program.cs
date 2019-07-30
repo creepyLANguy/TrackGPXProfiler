@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Drawing;
@@ -24,9 +25,22 @@ namespace TryGPX
   class Program
   {
 
-    private static int heightmapMaxValue_z = 255;
+    private static readonly int heightmapMaxValue_z = 255;
 
-    private static bool verbose = true;
+    private static bool verbose = false;
+
+    private static readonly string[] outputStrings =
+    {
+      "Getting min/max elevations",
+      "Adjusting elevations to zero base",
+      "Scaling elevations to heightmap resolution",
+      "Calculating distances between points",
+      "Scaling distances to output image width",
+      "Determining new output image width from scaled distances",
+      "Calculating final points to draw onto bitmap",
+      "Drawing image"
+    };
+    private static int echoIndex = 0;
 
     static int Main(string[] args)
     {
@@ -47,30 +61,30 @@ namespace TryGPX
       }
       if (verbose){PrintAllPoints(points);}
 
-      Console.WriteLine("\r\nGetting min/max elevations...");
+      Echo();
       var minMaxElevation = GetMinMaxElevationFromPoints(points);
 
-      Console.WriteLine("\r\nAdjusting elevations to zero base...");
+      Echo();
       var adjustedElevations = ReduceAllPointsByMinElevation(points, minMaxElevation.Item1);
 
-      Console.WriteLine("\r\nScaling elevations to heightmap resolution...");
+      Echo();
       var scaledElevations = ScaleElevationsToHeightmap(adjustedElevations, minMaxElevation);
 
-      Console.WriteLine("\r\nCalculating distances between points...");     
+      Echo();
       var distances = GetDistancesFromPoints(points, 1000000);
 
-      Console.WriteLine("\r\nScaling distances to output image width...");     
+      Echo();
       var scaledDistances = ScaleDistancesToOutputImageWidth(distances, outputImageWidth);
 
-      Console.WriteLine("\r\nDetermining new output image width from scaled distances...");
+      Echo();
       int newOutputImageWidth = GetNewOutputImageWidthFromScaledDistances(scaledDistances);
 
       Console.WriteLine("\r\nPrecision lost in pixels: " + (outputImageWidth - newOutputImageWidth));
 
-      Console.WriteLine("\r\nCalculating final points to draw onto bitmap...");
+      Echo();
       var finalDrawingPoints = GetFinalDrawingPoints(scaledDistances, scaledElevations, minThresh, maxThresh);
 
-      Console.WriteLine("\r\nDrawing image...");
+      Echo();
       var image = DrawImage(finalDrawingPoints, scaledDistances, newOutputImageWidth);//, minThresh, maxThresh);
 
       string outputFileName = Guid.NewGuid() + ".bmp";
@@ -256,6 +270,12 @@ namespace TryGPX
       if (verbose){Console.WriteLine("Min Ele: " + pMin);Console.WriteLine("Max Ele: " + pMax + "\r\n");}
 
       return new Tuple<double, double>(pMin.ele, pMax.ele);
+    }
+
+    private static void Echo()
+    {
+      Console.WriteLine("\r\n" + outputStrings[echoIndex] + "...");
+      ++echoIndex;
     }
   }
 }
