@@ -43,15 +43,15 @@ namespace TryGPX
 
     static int Main(string[] args)
     {
-      var guid = Guid.NewGuid();
-
       const string filename = "try.gpx";
       int minThresh = 0;
       int maxThresh = 0;
       int outputImageWidth = 2560;
-      bool verboseMessages = verbose; //AL. change to what the caller passes in.
+      verbose = false; //AL. change to what the caller passes in.
+      bool openImageWhenComplete = true;
+      bool openLogWhenComplete= true;
 
-      verbose = verboseMessages;
+      var guid = Guid.NewGuid();
 
       Echo("Reading points from \'" + filename + "\'...");
       var points = ReadPointsFromFile(filename);
@@ -97,8 +97,8 @@ namespace TryGPX
 
       File.WriteAllText(guid + ".log", log);
 
-      System.Diagnostics.Process.Start(outputFileName);
-      System.Diagnostics.Process.Start(guid + ".log");
+      if (openImageWhenComplete){System.Diagnostics.Process.Start(outputFileName);}
+      if (openLogWhenComplete){System.Diagnostics.Process.Start(guid + ".log");}
 
       return 1;
     }
@@ -283,14 +283,14 @@ namespace TryGPX
 
     private static void Echo()
     {
-      Echo("\r\n" + outputStrings[echoIndex] + "...");
+      Echo("\r\n" + outputStrings[echoIndex] + "...", true);
       ++echoIndex;
     }
 
-    private static void Echo(string s)
+    private static void Echo(string s, bool forceShow = false)
     {
       log += s;
-      if (verbose){Console.WriteLine(s);}
+      if (verbose || forceShow){Console.WriteLine(s);}
     }
 
     private static void Echo(double i)
