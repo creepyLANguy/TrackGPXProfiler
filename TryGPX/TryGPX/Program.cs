@@ -56,11 +56,11 @@ namespace TryGPX
 
       var guid = Guid.NewGuid();
 
-      Echo("Reading points from \'" + filename + "\'...");
+      Echo("Reading points from \'" + filename + "\'...", true);
       var points = ReadPointsFromFile(filename);
       if (points.Count == 0)
       {
-        Echo("\r\nCould not find file " + filename);
+        Echo("\r\nCould not find file " + filename, true);
         File.WriteAllText(guid + ".log", log);
         return -1;
       }
@@ -76,7 +76,7 @@ namespace TryGPX
       var scaledElevations = ScaleElevationsToHeightmap(adjustedElevations, minMaxElevation);
 
       Echo();
-      var distances = GetDistancesFromPoints(points, 1000000);
+      var distances = GetDistancesFromPoints(points);
 
       Echo();
       var scaledDistances = ScaleDistancesToOutputImageWidth(distances, outputImageWidth);
@@ -84,7 +84,7 @@ namespace TryGPX
       Echo();
       int newOutputImageWidth = GetNewOutputImageWidthFromScaledDistances(scaledDistances);
 
-      Echo("\r\nPrecision lost in pixels: " + (outputImageWidth - newOutputImageWidth));
+      Echo("\r\n\r\nPrecision lost in pixels: " + (outputImageWidth - newOutputImageWidth), true);
 
       Echo();
       var finalDrawingPoints = GetFinalDrawingPoints(scaledDistances, scaledElevations, minThresh, maxThresh);
@@ -97,9 +97,9 @@ namespace TryGPX
 
       Echo("\r\n");
       string outputFileName = guid + ".bmp";
-      Echo("\r\nSaving image as \'" + outputFileName + "\'...\r\n");
+      Echo("\r\n\r\nSaving image as \'" + outputFileName + "\'...", true);
       SaveImage(markedImage, outputFileName);
-      Echo("\r\nSaved " + outputFileName + "\r\n");
+      Echo("\r\n\r\nSaved " + outputFileName, true);
 
       File.WriteAllText(guid + ".log", log);
 
@@ -210,9 +210,11 @@ namespace TryGPX
       return adjustedDistances;
     }
 
-    private static List<double> GetDistancesFromPoints(List<MyPoint> points, int scale = 1000000)
+    private static List<double> GetDistancesFromPoints(List<MyPoint> points, double scale = 1000000)
     {
       var distances = new List<double>();
+
+      scale = scale > 0 ? scale : scale + 1;
 
       for (int i = 0; i < points.Count - 1; ++i)
       {
@@ -306,8 +308,8 @@ namespace TryGPX
       foreach (var p in points)
       {
         Echo("\r\n");
-        Echo("Lon = " + p.lat);
-        Echo("Lat = " + p.lat);
+        Echo("Lon = " + p.lat + " | ");
+        Echo("Lat = " + p.lat + " | ");
         Echo("Ele = " + p.ele);
       }
     }
