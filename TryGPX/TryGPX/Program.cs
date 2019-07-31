@@ -45,27 +45,32 @@ namespace TryGPX
 
     static int Main(string[] args)
     {
-      const string filename = "try.gpx";
+      //string filename = "try.gpx";
+      string filename = "szk.gpx";
       int minThresh = 0;
       int maxThresh = 0;
       int outputImageWidth = 2560;
       verbose = false; //AL. change to what the caller passes in.
       bool openImageWhenComplete = true;
       bool openLogWhenComplete= true;
-      bool shadeRegion = true;
 
       var guid = Guid.NewGuid();
 
       Echo("Reading points from \'" + filename + "\'...", true);
-      var points = ReadPointsFromFile(filename);
-      if (points.Count == 0)
+      List<MyPoint> points;
+      try
       {
-        Echo("\r\nCould not find file " + filename, true);
-        File.WriteAllText(guid + ".log", log);
-        return -1;
+        points = ReadPointsFromFile(filename);
+        PrintAllPoints(points);
       }
-      PrintAllPoints(points);
-
+      catch
+      {
+        Echo("\r\nError opening file " + filename, true);
+        File.WriteAllText(guid + ".log", log);
+        System.Diagnostics.Process.Start(guid + ".log");
+        return -1;
+      }      
+      
       Echo();
       var minMaxElevation = GetMinMaxElevationFromPoints(points);
 
@@ -273,21 +278,27 @@ namespace TryGPX
     {
       var points = new List<MyPoint>();
 
-      string[] lines = File.ReadAllLines("try.gpx");
+      string[] lines = File.ReadAllLines(filename);
       for (int i = 0; i < lines.Length; ++i)
       {
         var line = lines[i];
 
+        //AL.
+        //Console.WriteLine(i + line);
+        //
+
         if (line.Contains("<trkpt"))
         {
-          var lonLabel = "lon=";
-          var startLon = line.IndexOf(lonLabel) + 1 + lonLabel.Length;
-          var endLon = line.Substring(startLon).IndexOf(" ") - 1;
+          var lonLabel = "lon=\"";
+          var startLon = line.IndexOf(lonLabel) + lonLabel.Length;
+          var lonSplice = line.Substring(startLon);
+          var endLon = lonSplice.IndexOf("\"");
           var lon = line.Substring(startLon, endLon);
 
-          var latLabel = "lat=";
-          var startLat = line.IndexOf(latLabel) + 1 + latLabel.Length;
-          var endLat = line.Substring(startLat).IndexOf("\"");
+          var latLabel = "lat=\"";
+          var startLat = line.IndexOf(latLabel) + latLabel.Length;
+          var latSplice = line.Substring(startLat);
+          var endLat = latSplice.IndexOf("\"");
           var lat = line.Substring(startLat, endLat);
 
           ++i;
