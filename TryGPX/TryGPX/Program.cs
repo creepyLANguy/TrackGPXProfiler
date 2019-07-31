@@ -46,7 +46,7 @@ namespace TryGPX
     static int Main(string[] args)
     {
       string filename = "szk.gpx";
-      int minThresh = 0;
+      int minThresh = 10;
       int maxThresh = 0;
       int outputImageWidth = 2560;
       verbose = false; //AL. change to what the caller passes in.
@@ -92,10 +92,10 @@ namespace TryGPX
       Echo("\r\n\r\nPrecision lost in pixels: " + (outputImageWidth - newOutputImageWidth), true);
 
       Echo();
-      var finalDrawingPoints = GetFinalDrawingPoints(scaledDistances, scaledElevations, minThresh, maxThresh);
+      var finalDrawingPoints = GetFinalDrawingPoints(scaledDistances, scaledElevations, maxThresh);
 
       Echo();
-      var image = DrawImage(finalDrawingPoints, scaledDistances, newOutputImageWidth, drawAsCurve);//, minThresh, maxThresh);
+      var image = DrawImage(finalDrawingPoints, newOutputImageWidth, minThresh, maxThresh, drawAsCurve);
 
       Echo();
       var markedImage = MarkPointsWithVerticalLine(finalDrawingPoints, image);
@@ -138,14 +138,14 @@ namespace TryGPX
       return shadedBmp;
     }
 
-    private static Bitmap DrawImage(Point[] points, List<int> distances, int imageWidth, bool drawAsCurve)//, int minThresh, int maxThresh)
+    private static Bitmap DrawImage(Point[] points, int imageWidth, int minThresh, int maxThresh, bool drawAsCurve = false)
     {
-      var imageHeight = heightmapMaxValue_z + 1;//+ minThresh + maxThresh;
+      var imageHeight = heightmapMaxValue_z + 1 + minThresh + maxThresh;
 
       var bmp = new Bitmap(imageWidth, imageHeight);
       var gfx = Graphics.FromImage(bmp);
 
-      //Paint whole bitmap white. 
+      //Paint whole bitmap white else it defaults to black.
       gfx.FillRectangle(Brushes.White, 0, 0, imageWidth, imageHeight);
 
       var fillBrush = new SolidBrush(Color.LightBlue);
@@ -159,7 +159,7 @@ namespace TryGPX
           new Point(points[i].X, imageHeight)
         };
 
-        gfx.FillPolygon(fillBrush, regionPoints, FillMode.Alternate);
+        gfx.FillPolygon(fillBrush, regionPoints);
       }
 
       if (drawAsCurve)
@@ -175,7 +175,7 @@ namespace TryGPX
     }
 
 
-    private static Point[] GetFinalDrawingPoints(List<int> scaledDistances, List<int> scaledElevations, int minThresh, int maxThresh)
+    private static Point[] GetFinalDrawingPoints(List<int> scaledDistances, List<int> scaledElevations, int maxThresh)
     {
       var finalPoints = new List<Point>();
 
@@ -184,7 +184,7 @@ namespace TryGPX
       for (int i = 1; i < scaledElevations.Count; ++i)
       {
         int x = scaledDistances[i - 1] + finalPoints[i - 1].X;
-        int y = heightmapMaxValue_z - scaledElevations[i];
+        int y = heightmapMaxValue_z - scaledElevations[i] + maxThresh;
 
         finalPoints.Add(new Point(x, y));
       }
@@ -286,10 +286,6 @@ namespace TryGPX
       for (int i = 0; i < lines.Length; ++i)
       {
         var line = lines[i];
-
-        //AL.
-        //Console.WriteLine(i + line);
-        //
 
         if (line.Contains("<trkpt"))
         {
