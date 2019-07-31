@@ -45,7 +45,6 @@ namespace TryGPX
 
     static int Main(string[] args)
     {
-      //string filename = "try.gpx";
       string filename = "szk.gpx";
       int minThresh = 0;
       int maxThresh = 0;
@@ -53,6 +52,7 @@ namespace TryGPX
       verbose = false; //AL. change to what the caller passes in.
       bool openImageWhenComplete = true;
       bool openLogWhenComplete= true;
+      bool drawAsCurve = false;
 
       var guid = Guid.NewGuid();
 
@@ -95,10 +95,10 @@ namespace TryGPX
       var finalDrawingPoints = GetFinalDrawingPoints(scaledDistances, scaledElevations, minThresh, maxThresh);
 
       Echo();
-      var image = DrawImage(finalDrawingPoints, scaledDistances, newOutputImageWidth, new SolidBrush(Color.LightBlue));//, minThresh, maxThresh);
+      var image = DrawImage(finalDrawingPoints, scaledDistances, newOutputImageWidth, drawAsCurve);//, minThresh, maxThresh);
 
       Echo();
-      var markedImage = MarkPointsWithVerticalLine(finalDrawingPoints, image);//, Pens.Black);
+      var markedImage = MarkPointsWithVerticalLine(finalDrawingPoints, image);
 
       Echo("\r\n");
       string outputFileName = guid + ".bmp";
@@ -138,7 +138,7 @@ namespace TryGPX
       return shadedBmp;
     }
 
-    private static Bitmap DrawImage(Point[] points, List<int> distances, int imageWidth, SolidBrush fillBrush = null)//, int minThresh, int maxThresh)
+    private static Bitmap DrawImage(Point[] points, List<int> distances, int imageWidth, bool drawAsCurve)//, int minThresh, int maxThresh)
     {
       var imageHeight = heightmapMaxValue_z + 1;//+ minThresh + maxThresh;
 
@@ -148,25 +148,29 @@ namespace TryGPX
       //Paint whole bitmap white. 
       gfx.FillRectangle(Brushes.White, 0, 0, imageWidth, imageHeight);
 
-      if (fillBrush != null)
+      var fillBrush = new SolidBrush(Color.LightBlue);
+      for (int i = 0; i < points.Length - 1; ++i)
       {
-        for (int i = 0; i < points.Length - 1; ++i)
+        Point[] regionPoints =
         {
-          Point[] regionPoints =
-          {
-            points[i],
-            points[i + 1],
-            new Point(points[i + 1].X, imageHeight),
-            new Point(points[i].X, imageHeight)
-          };
+          points[i],
+          points[i + 1],
+          new Point(points[i + 1].X, imageHeight),
+          new Point(points[i].X, imageHeight)
+        };
 
-          gfx.FillPolygon(fillBrush, regionPoints, FillMode.Alternate);
-        }        
+        gfx.FillPolygon(fillBrush, regionPoints, FillMode.Alternate);
       }
 
-      //gfx.DrawCurve(Pens.Black, points); //Can lead to errors.
-      gfx.DrawLines(Pens.Black, points);
-
+      if (drawAsCurve)
+      {
+        gfx.DrawCurve(Pens.Black, points); //Avoid - can lead to big errors.
+      }
+      else
+      {
+        gfx.DrawLines(Pens.Black, points);
+      }
+      
       return bmp;
     }
 
