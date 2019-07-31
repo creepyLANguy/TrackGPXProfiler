@@ -1,6 +1,5 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Drawing;
@@ -24,42 +23,45 @@ namespace TryGPX
 
   class Program
   {
-
     private static readonly int heightmapMaxValue_z = 255;
 
     private static bool verbose = false;
 
     private static readonly string[] outputStrings =
     {
-      "Getting min/max elevations",
-      "Adjusting elevations to zero base",
-      "Scaling elevations to heightmap resolution",
-      "Calculating distances between points",
-      "Scaling distances to output image width",
-      "Determining new output image width from scaled distances",
-      "Calculating final points to draw onto bitmap",
-      "Drawing image"
-    };
+          "\r\nGetting min/max elevations",
+          "\r\nAdjusting elevations to zero base",
+          "\r\nScaling elevations to heightmap resolution",
+          "\r\nCalculating distances between points",
+          "\r\nScaling distances to output image width",
+          "\r\nDetermining new output image width from scaled distances",
+          "\r\nCalculating final points to draw onto bitmap",
+          "\r\nDrawing image",
+        };
     private static int echoIndex = 0;
+    private static string log = "";
 
     static int Main(string[] args)
     {
+      var guid = Guid.NewGuid();
+
       const string filename = "try.gpx";
       int minThresh = 0;
       int maxThresh = 0;
-      int outputImageWidth = 2560;   
+      int outputImageWidth = 2560;
       bool verboseMessages = verbose; //AL. change to what the caller passes in.
 
       verbose = verboseMessages;
 
-      Console.WriteLine("\r\nReading points from \'" + filename + "\'...");
+      Echo("Reading points from \'" + filename + "\'...");
       var points = ReadPointsFromFile(filename);
       if (points.Count == 0)
       {
-        Console.WriteLine("Could not find file " + filename);
+        Echo("\r\nCould not find file " + filename);
+        File.WriteAllText(guid + ".log", log);
         return -1;
       }
-      if (verbose){PrintAllPoints(points);}
+      PrintAllPoints(points);
 
       Echo();
       var minMaxElevation = GetMinMaxElevationFromPoints(points);
@@ -79,7 +81,7 @@ namespace TryGPX
       Echo();
       int newOutputImageWidth = GetNewOutputImageWidthFromScaledDistances(scaledDistances);
 
-      Console.WriteLine("\r\nPrecision lost in pixels: " + (outputImageWidth - newOutputImageWidth));
+      Echo("\r\nPrecision lost in pixels: " + (outputImageWidth - newOutputImageWidth));
 
       Echo();
       var finalDrawingPoints = GetFinalDrawingPoints(scaledDistances, scaledElevations, minThresh, maxThresh);
@@ -87,10 +89,16 @@ namespace TryGPX
       Echo();
       var image = DrawImage(finalDrawingPoints, scaledDistances, newOutputImageWidth);//, minThresh, maxThresh);
 
-      string outputFileName = Guid.NewGuid() + ".bmp";
-      Console.WriteLine("\r\nSaving image as \'" + outputFileName + "\'...");
+      Echo("\r\n");
+      string outputFileName = guid + ".bmp";
+      Echo("\r\nSaving image as \'" + outputFileName + "\'...\r\n");
       SaveImage(image, outputFileName);
-      Console.WriteLine("\r\nSaved " + outputFileName);
+      Echo("\r\nSaved " + outputFileName + "\r\n");
+
+      File.WriteAllText(guid + ".log", log);
+
+      System.Diagnostics.Process.Start(outputFileName);
+      System.Diagnostics.Process.Start(guid + ".log");
 
       return 1;
     }
@@ -100,7 +108,7 @@ namespace TryGPX
       image.Save(outputFileName, ImageFormat.Bmp);
     }
 
-    private static Bitmap DrawImage(List<Point> points, List<int> distances, int imageWidth)//, int minThresh, int maxThresh)
+    private static Bitmap DrawImage(Point[] points, List<int> distances, int imageWidth)//, int minThresh, int maxThresh)
     {
       var imageHeight = heightmapMaxValue_z + 1;//+ minThresh + maxThresh;
 
@@ -108,38 +116,38 @@ namespace TryGPX
       var gfx = Graphics.FromImage(bmp);
 
       //Paint whole bitmap white. 
-      gfx.FillRectangle(Brushes.White, 0, 0, imageWidth, imageHeight);     
+      gfx.FillRectangle(Brushes.White, 0, 0, imageWidth, imageHeight);
 
-      //AL.
-      //TODO
-      //Paint all points and connect with bresenham or bezier.
+      //gfx.DrawCurve(Pens.Black, points); //Can lead to errors.
+      gfx.DrawLines(Pens.Black, points);
 
       return bmp;
     }
 
-    private static List<Point> GetFinalDrawingPoints(List<int> scaledDistances, List<int> scaledElevations, int minThresh, int maxThresh)
+
+    private static Point[] GetFinalDrawingPoints(List<int> scaledDistances, List<int> scaledElevations, int minThresh, int maxThresh)
     {
       var finalPoints = new List<Point>();
 
-      finalPoints.Add(new Point(0, scaledElevations[0]));
+      finalPoints.Add(new Point(0, heightmapMaxValue_z - scaledElevations[0]));
 
       for (int i = 1; i < scaledElevations.Count; ++i)
       {
-        int x = scaledDistances[i-1] + finalPoints[i -1].X;
-        int y = scaledElevations[i];
+        int x = scaledDistances[i - 1] + finalPoints[i - 1].X;
+        int y = heightmapMaxValue_z - scaledElevations[i];
 
-        finalPoints.Add(new Point(x, y));       
+        finalPoints.Add(new Point(x, y));
       }
 
-      if (verbose){foreach (var p in finalPoints){if (verbose) { Console.WriteLine("x : " + p.X + " , y : " + p.Y); }}}
+      foreach (var p in finalPoints) { Echo("\r\nx : " + p.X + " , y : " + p.Y); }
 
-      return finalPoints;
+      return finalPoints.ToArray();
     }
 
     private static int GetNewOutputImageWidthFromScaledDistances(List<int> scaledDistances)
     {
       int sum = scaledDistances.Sum();
-      if (verbose) { Console.WriteLine(sum); }
+      Echo(sum);
       return sum;
     }
 
@@ -155,7 +163,7 @@ namespace TryGPX
 
         adjustedDistances.Add((int)a);
 
-        if (verbose) { Console.WriteLine(a); }
+        Echo(a);
       }
 
       return adjustedDistances;
@@ -165,19 +173,19 @@ namespace TryGPX
     {
       var distances = new List<double>();
 
-      for (int i = 0; i < points.Count-1; ++i)
+      for (int i = 0; i < points.Count - 1; ++i)
       {
         MyPoint p1 = points[i];
-        MyPoint p2 = points[i+1];
+        MyPoint p2 = points[i + 1];
 
         double latDiffSq = Math.Pow(p2.lat - p1.lat, 2);
         double lonDiffSq = Math.Pow(p2.lon - p1.lon, 2);
 
-        double d = Math.Sqrt(latDiffSq+lonDiffSq) * scale;
+        double d = Math.Sqrt(latDiffSq + lonDiffSq) * scale;
 
         distances.Add(d);
 
-        if (verbose) { Console.WriteLine(d); }
+        Echo(d);
       }
 
       return distances;
@@ -195,7 +203,7 @@ namespace TryGPX
 
         scaledElevations.Add((int)d);
 
-        if (verbose){Console.WriteLine(d);}
+        Echo(d);
       }
 
       return scaledElevations;
@@ -211,8 +219,9 @@ namespace TryGPX
 
         adjustedElevations.Add(reduced);
 
-        if (verbose){Console.WriteLine(reduced);}
+        Echo(reduced);
       }
+
 
       return adjustedElevations;
     }
@@ -255,27 +264,38 @@ namespace TryGPX
     {
       foreach (var p in points)
       {
-        Console.WriteLine("Lon = " + p.lat);
-        Console.WriteLine("Lat = " + p.lat);
-        Console.WriteLine("Ele = " + p.ele);
-        Console.WriteLine();
+        Echo("\r\n");
+        Echo("Lon = " + p.lat);
+        Echo("Lat = " + p.lat);
+        Echo("Ele = " + p.ele);
       }
     }
-
+    
     private static Tuple<double, double> GetMinMaxElevationFromPoints(List<MyPoint> points)
     {
       var pMin = points.Aggregate((curMin, x) => (x.ele < curMin.ele ? x : curMin));
-      var pMax= points.Aggregate((curMax, x) => (x.ele > curMax.ele ? x : curMax));
+      var pMax = points.Aggregate((curMax, x) => (x.ele > curMax.ele ? x : curMax));
 
-      if (verbose){Console.WriteLine("Min Ele: " + pMin);Console.WriteLine("Max Ele: " + pMax + "\r\n");}
-
+      Echo("\r\nMin Ele: " + pMin); Echo("\r\nMax Ele: " + pMax);
+      
       return new Tuple<double, double>(pMin.ele, pMax.ele);
     }
 
     private static void Echo()
     {
-      Console.WriteLine("\r\n" + outputStrings[echoIndex] + "...");
+      Echo("\r\n" + outputStrings[echoIndex] + "...");
       ++echoIndex;
+    }
+
+    private static void Echo(string s)
+    {
+      log += s;
+      if (verbose){Console.WriteLine(s);}
+    }
+
+    private static void Echo(double i)
+    {
+      Echo("\r\n" + i);
     }
   }
 }
