@@ -24,7 +24,7 @@ namespace TryGPX
 
   class Program
   {
-    private static readonly int heightmapMaxValue_z = 255;
+    private const int heightmapMaxValue_z = 255;
 
     private static bool verbose = false;
 
@@ -119,7 +119,7 @@ namespace TryGPX
       image.Save(outputFileName, ImageFormat.Bmp);
     }
 
-    private static Bitmap MarkPointsWithVerticalLine(Point[] points, Bitmap bmp, Pen pen = null) //, int minThresh, int maxThresh)
+    private static Bitmap MarkPointsWithVerticalLine(Point[] points, Bitmap bmp)
     {
       var shadedBmp = new Bitmap(bmp);
 
@@ -127,9 +127,7 @@ namespace TryGPX
 
       var imageMaxY = shadedBmp.Height - 1;
 
-      pen = pen == null ? Pens.Red : pen; //ror I'm bored...
-      //if (pen == null){pen = Pens.Red;}
-
+      var pen = Pens.Red;
       foreach (var p in points)
       {
         gfx.DrawLine(pen, new Point(p.X, p.Y+1), new Point(p.X, imageMaxY));
