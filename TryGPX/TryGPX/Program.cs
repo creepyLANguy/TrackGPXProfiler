@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 
 namespace TryGPX
@@ -29,15 +30,16 @@ namespace TryGPX
 
     private static readonly string[] outputStrings =
     {
-          "\r\nGetting min/max elevations",
-          "\r\nAdjusting elevations to zero base",
-          "\r\nScaling elevations to heightmap resolution",
-          "\r\nCalculating distances between points",
-          "\r\nScaling distances to output image width",
-          "\r\nDetermining new output image width from scaled distances",
-          "\r\nCalculating final points to draw onto bitmap",
-          "\r\nDrawing image",
-        };
+      "\r\nGetting min/max elevations",
+      "\r\nAdjusting elevations to zero base",
+      "\r\nScaling elevations to heightmap resolution",
+      "\r\nCalculating distances between points",
+      "\r\nScaling distances to output image width",
+      "\r\nDetermining new output image width from scaled distances",
+      "\r\nCalculating final points to draw onto bitmap",
+      "\r\nDrawing elevation curve",
+      "\r\nMarking known gpx points on curve",
+    };
     private static int echoIndex = 0;
     private static string log = "";
 
@@ -50,6 +52,7 @@ namespace TryGPX
       verbose = false; //AL. change to what the caller passes in.
       bool openImageWhenComplete = true;
       bool openLogWhenComplete= true;
+      bool shadeRegion = true;
 
       var guid = Guid.NewGuid();
 
@@ -87,12 +90,15 @@ namespace TryGPX
       var finalDrawingPoints = GetFinalDrawingPoints(scaledDistances, scaledElevations, minThresh, maxThresh);
 
       Echo();
-      var image = DrawImage(finalDrawingPoints, scaledDistances, newOutputImageWidth);//, minThresh, maxThresh);
+      var image = DrawImage(finalDrawingPoints, scaledDistances, newOutputImageWidth, new SolidBrush(Color.LightBlue));//, minThresh, maxThresh);
+
+      Echo();
+      var markedImage = MarkPointsWithVerticalLine(finalDrawingPoints, image);//, Pens.Black);
 
       Echo("\r\n");
       string outputFileName = guid + ".bmp";
       Echo("\r\nSaving image as \'" + outputFileName + "\'...\r\n");
-      SaveImage(image, outputFileName);
+      SaveImage(markedImage, outputFileName);
       Echo("\r\nSaved " + outputFileName + "\r\n");
 
       File.WriteAllText(guid + ".log", log);
@@ -108,7 +114,26 @@ namespace TryGPX
       image.Save(outputFileName, ImageFormat.Bmp);
     }
 
-    private static Bitmap DrawImage(Point[] points, List<int> distances, int imageWidth)//, int minThresh, int maxThresh)
+    private static Bitmap MarkPointsWithVerticalLine(Point[] points, Bitmap bmp, Pen pen = null) //, int minThresh, int maxThresh)
+    {
+      var shadedBmp = new Bitmap(bmp);
+
+      var gfx = Graphics.FromImage(shadedBmp);
+
+      var imageMaxY = shadedBmp.Height - 1;
+
+      pen = pen == null ? Pens.Red : pen; //ror I'm bored...
+      //if (pen == null){pen = Pens.Red;}
+
+      foreach (var p in points)
+      {
+        gfx.DrawLine(pen, new Point(p.X, p.Y+1), new Point(p.X, imageMaxY));
+      }
+      
+      return shadedBmp;
+    }
+
+    private static Bitmap DrawImage(Point[] points, List<int> distances, int imageWidth, SolidBrush fillBrush = null)//, int minThresh, int maxThresh)
     {
       var imageHeight = heightmapMaxValue_z + 1;//+ minThresh + maxThresh;
 
@@ -117,6 +142,22 @@ namespace TryGPX
 
       //Paint whole bitmap white. 
       gfx.FillRectangle(Brushes.White, 0, 0, imageWidth, imageHeight);
+
+      if (fillBrush != null)
+      {
+        for (int i = 0; i < points.Length - 1; ++i)
+        {
+          Point[] regionPoints =
+          {
+            points[i],
+            points[i + 1],
+            new Point(points[i + 1].X, imageHeight),
+            new Point(points[i].X, imageHeight)
+          };
+
+          gfx.FillPolygon(fillBrush, regionPoints, FillMode.Alternate);
+        }        
+      }
 
       //gfx.DrawCurve(Pens.Black, points); //Can lead to errors.
       gfx.DrawLines(Pens.Black, points);
