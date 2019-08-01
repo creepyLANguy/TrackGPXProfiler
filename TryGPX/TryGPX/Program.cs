@@ -65,26 +65,10 @@ namespace TryGPX
     
     static int Main(string[] args)
     {
-      string[] a = {"inputFilename", "try.gpx", "groundThresh", "55", "skyThresh", "25" };
-      Parameters p;
-      try
+      Parameters p = new Parameters
       {
-        p = GetParametersFromArgs(a);
-      }
-      catch
-      {
-        Console.WriteLine("Error in args passed in!");
-        return -1;
-      }
-      return Run(p);
-    }
-
-    private static Parameters GetParametersFromArgs(string[] args)
-    {
-      object p = new Parameters
-      {
-        inputFilename = "ERROR_Bad_Arg_Passed_In_For_inputFilename",
-        outputFilename = "ERROR_Bad_Arg_Passed_In_For_outputFilename",
+        inputFilename = "",
+        outputFilename = "",
         groundThresh = 0,
         skyThresh = 0,
         outputImageWidth = 2560,
@@ -94,9 +78,30 @@ namespace TryGPX
         drawAsCurve = false
       };
 
+      try
+      {
+        p = GetParametersFromArgs(args, p);
+      }
+      catch (Exception e)
+      {
+        Console.WriteLine("Error processing args!");
+        Console.WriteLine(e.ToString());
+        return -1;
+      }
+
+      return Run(p);
+    }
+
+    private static Parameters GetParametersFromArgs(string[] args, Parameters p)
+    {
+      Console.WriteLine("cmdline args:");
+      foreach (var s in args){ Console.WriteLine(s); }
+      
       var l = args.ToList();
 
-      PropertyInfo[] propertyInfo = p.GetType().GetProperties();
+      object pObj = p;
+
+      PropertyInfo[] propertyInfo = pObj.GetType().GetProperties();
       foreach (var pi in propertyInfo)
       {
         var label = pi.Name;
@@ -107,10 +112,23 @@ namespace TryGPX
         string val = l[index + 1];
         var type = pi.PropertyType;
         var converted = Convert.ChangeType(val, type);
-        pi.SetValue(p, converted);
+        pi.SetValue(pObj, converted);
       }
 
-      return (Parameters)p;
+      Parameters pNew =(Parameters)pObj;
+
+      if (pNew.inputFilename.Length == 0)
+      {
+        throw new Exception("ERROR - bad inputFilename passed as arg.");
+      }
+
+      //In case the caller assumes outputs will be named the same as inputs.
+      if (pNew.outputFilename.Length == 0)
+      {
+        pNew.outputFilename = pNew.inputFilename.Substring(0, pNew.inputFilename.IndexOf(".gpx"));
+      }
+
+      return pNew;
     }
 
     private static int Run(Parameters p)
