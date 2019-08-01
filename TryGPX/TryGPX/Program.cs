@@ -3,19 +3,20 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Drawing;
-using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
+using System.Reflection;
 
 namespace TryGPX
 {
   class Program
   {
-    private const int heightmapMaxValue_z = 255;
+    private const int HeightmapMaxResolutionZ = 255;
 
     private static bool _echoVerbose = false;
 
     private static readonly string[] outputStrings =
     {
+      "Executing with following parameters:",
       "\r\nGetting min/max elevations",
       "\r\nAdjusting elevations to zero base",
       "\r\nScaling elevations to heightmap resolution",
@@ -33,15 +34,15 @@ namespace TryGPX
 
     private struct Parameters
     {
-      public string inputFilename;
-      public string outputFilename;
-      public int minThresh;
-      public int maxThresh;
-      public int outputImageWidth;
-      public bool verbose;
-      public bool openImageWhenComplete;
-      public bool openLogWhenComplete;
-      public bool drawAsCurve;
+      public string inputFilename { get; set; }
+      public string outputFilename { get; set; }
+      public int groundThresh { get; set; }
+      public int skyThresh { get; set; }
+      public int outputImageWidth { get; set; }
+      public bool verbose { get; set; }
+      public bool openImageWhenComplete { get; set; }
+      public bool openLogWhenComplete { get; set; }
+      public bool drawAsCurve { get; set; }
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -64,33 +65,62 @@ namespace TryGPX
     
     static int Main(string[] args)
     {
-      Parameters p = GetParametersFromArgs(args);
-
+      string[] a = {"inputFilename", "try.gpx", "groundThresh", "55", "skyThresh", "25" };
+      Parameters p;
+      try
+      {
+        p = GetParametersFromArgs(a);
+      }
+      catch
+      {
+        Console.WriteLine("Error in args passed in!");
+        return -1;
+      }
       return Run(p);
     }
 
     private static Parameters GetParametersFromArgs(string[] args)
     {
-      var p = new Parameters();
+      object p = new Parameters
+      {
+        inputFilename = "ERROR_Bad_Arg_Passed_In_For_inputFilename",
+        outputFilename = "ERROR_Bad_Arg_Passed_In_For_outputFilename",
+        groundThresh = 0,
+        skyThresh = 0,
+        outputImageWidth = 2560,
+        verbose = false,
+        openImageWhenComplete = true,
+        openLogWhenComplete = true,
+        drawAsCurve = false
+      };
 
-      p.inputFilename = "szk.gpx";
-      p.outputFilename = Guid.NewGuid().ToString();
-      p.minThresh = 10;
-      p.maxThresh = 0;
-      p.outputImageWidth = 2560;
-      p.verbose = false;
-      p.openImageWhenComplete = true;
-      p.openLogWhenComplete = true;
-      p.drawAsCurve = false;
+      var l = args.ToList();
 
-      return p;
+      PropertyInfo[] propertyInfo = p.GetType().GetProperties();
+      foreach (var pi in propertyInfo)
+      {
+        var label = pi.Name;
+        var index = l.IndexOf(label);
+
+        if (index < 0) { continue; }
+
+        string val = l[index + 1];
+        var type = pi.PropertyType;
+        var converted = Convert.ChangeType(val, type);
+        pi.SetValue(p, converted);
+      }
+
+      return (Parameters)p;
     }
 
     private static int Run(Parameters p)
     {
+      Echo();
+      PrintAllParameters(p);
+
       _echoVerbose = p.verbose;
 
-      Echo("Reading points from \'" + p.inputFilename + "\'...", true);
+      Echo("\r\nReading points from \'" + p.inputFilename + "\'...", true);
       List<MyPoint> points;
       try
       {
@@ -126,15 +156,14 @@ namespace TryGPX
       Echo("\r\n\r\nPrecision lost in pixels: " + (p.outputImageWidth - newOutputImageWidth), true);
 
       Echo();
-      var finalDrawingPoints = GetFinalDrawingPoints(scaledDistances, scaledElevations, p.maxThresh);
+      var finalDrawingPoints = GetFinalDrawingPoints(scaledDistances, scaledElevations, p.skyThresh);
 
       Echo();
-      var image = DrawImage(finalDrawingPoints, newOutputImageWidth, p.minThresh, p.maxThresh, p.drawAsCurve);
+      var image = DrawImage(finalDrawingPoints, newOutputImageWidth, p.groundThresh, p.skyThresh, p.drawAsCurve);
 
       Echo();
       var markedImage = MarkPointsWithVerticalLine(finalDrawingPoints, image);
 
-      Echo("\r\n");
       string outputFileName = p.outputFilename + ".bmp";
       Echo("\r\n\r\nSaving image as \'" + outputFileName + "\'...", true);
       SaveImage(markedImage, outputFileName);
@@ -146,6 +175,15 @@ namespace TryGPX
       if (p.openLogWhenComplete) { System.Diagnostics.Process.Start(p.outputFilename + ".log"); }
 
       return 1;
+    }
+
+    private static void PrintAllParameters(Parameters p)
+    {
+      PropertyInfo[] propertyInfo = p.GetType().GetProperties();
+      foreach (var pi in propertyInfo)
+      {
+        Echo(pi.ToString() + " = " + pi.GetValue(p) + "\r\n", true);
+      }
     }
 
     private static void SaveImage(Bitmap image, string outputFileName)
@@ -172,7 +210,7 @@ namespace TryGPX
 
     private static Bitmap DrawImage(Point[] points, int imageWidth, int minThresh, int maxThresh, bool drawAsCurve = false)
     {
-      var imageHeight = heightmapMaxValue_z + 1 + minThresh + maxThresh;
+      var imageHeight = HeightmapMaxResolutionZ + 1 + minThresh + maxThresh;
 
       var bmp = new Bitmap(imageWidth, imageHeight);
       var gfx = Graphics.FromImage(bmp);
@@ -211,12 +249,12 @@ namespace TryGPX
     {
       var finalPoints = new List<Point>();
 
-      finalPoints.Add(new Point(0, heightmapMaxValue_z - scaledElevations[0]));
+      finalPoints.Add(new Point(0, HeightmapMaxResolutionZ - scaledElevations[0]));
 
       for (int i = 1; i < scaledElevations.Count; ++i)
       {
         int x = scaledDistances[i - 1] + finalPoints[i - 1].X;
-        int y = heightmapMaxValue_z - scaledElevations[i] + maxThresh;
+        int y = HeightmapMaxResolutionZ - scaledElevations[i] + maxThresh;
 
         finalPoints.Add(new Point(x, y));
       }
@@ -283,7 +321,7 @@ namespace TryGPX
 
       foreach (var e in adjustedElevations)
       {
-        double d = (e / maxAchievableElevation) * heightmapMaxValue_z;
+        double d = (e / maxAchievableElevation) * HeightmapMaxResolutionZ;
 
         scaledElevations.Add((int)d);
 
