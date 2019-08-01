@@ -8,25 +8,11 @@ using System.Drawing.Imaging;
 
 namespace TryGPX
 {
-  internal class MyPoint
-  {
-    public MyPoint(double lon, double lat, double ele)
-    {
-      this.lon = lon;
-      this.lat = lat;
-      this.ele = ele;
-    }
-
-    public double lat;
-    public double lon;
-    public double ele;
-  }
-
   class Program
   {
     private const int heightmapMaxValue_z = 255;
 
-    private static bool verbose = false;
+    private static bool _echoVerbose = false;
 
     private static readonly string[] outputStrings =
     {
@@ -40,37 +26,85 @@ namespace TryGPX
       "\r\nDrawing elevation curve",
       "\r\nMarking known gpx points on curve",
     };
-    private static int echoIndex = 0;
-    private static string log = "";
+    private static int _echoIndex = 0;
+    private static string _log = "";
 
+    ///////////////////////////////////////////////////////////////////////////
+
+    private struct Parameters
+    {
+      public string inputFilename;
+      public string outputFilename;
+      public int minThresh;
+      public int maxThresh;
+      public int outputImageWidth;
+      public bool verbose;
+      public bool openImageWhenComplete;
+      public bool openLogWhenComplete;
+      public bool drawAsCurve;
+    }
+
+    ///////////////////////////////////////////////////////////////////////////
+
+    struct MyPoint
+    {
+      public MyPoint(double lon, double lat, double ele)
+      {
+        this.lon = lon;
+        this.lat = lat;
+        this.ele = ele;
+      }
+
+      public double lat;
+      public double lon;
+      public double ele;
+    }
+    
+    ///////////////////////////////////////////////////////////////////////////
+    
     static int Main(string[] args)
     {
-      string filename = "szk.gpx";
-      int minThresh = 10;
-      int maxThresh = 0;
-      int outputImageWidth = 2560;
-      verbose = false; //AL. change to what the caller passes in.
-      bool openImageWhenComplete = true;
-      bool openLogWhenComplete= true;
-      bool drawAsCurve = false;
+      Parameters p = GetParametersFromArgs(args);
 
-      var guid = Guid.NewGuid();
+      return Run(p);
+    }
 
-      Echo("Reading points from \'" + filename + "\'...", true);
+    private static Parameters GetParametersFromArgs(string[] args)
+    {
+      var p = new Parameters();
+
+      p.inputFilename = "szk.gpx";
+      p.outputFilename = Guid.NewGuid().ToString();
+      p.minThresh = 10;
+      p.maxThresh = 0;
+      p.outputImageWidth = 2560;
+      p.verbose = false;
+      p.openImageWhenComplete = true;
+      p.openLogWhenComplete = true;
+      p.drawAsCurve = false;
+
+      return p;
+    }
+
+    private static int Run(Parameters p)
+    {
+      _echoVerbose = p.verbose;
+
+      Echo("Reading points from \'" + p.inputFilename + "\'...", true);
       List<MyPoint> points;
       try
       {
-        points = ReadPointsFromFile(filename);
+        points = ReadPointsFromFile(p.inputFilename);
         PrintAllPoints(points);
       }
       catch
       {
-        Echo("\r\nError opening file " + filename, true);
-        File.WriteAllText(guid + ".log", log);
-        System.Diagnostics.Process.Start(guid + ".log");
+        Echo("\r\nError opening file " + p.inputFilename, true);
+        File.WriteAllText(p.outputFilename + ".log", _log);
+        System.Diagnostics.Process.Start(p.outputFilename + ".log");
         return -1;
-      }      
-      
+      }
+
       Echo();
       var minMaxElevation = GetMinMaxElevationFromPoints(points);
 
@@ -84,32 +118,32 @@ namespace TryGPX
       var distances = GetDistancesFromPoints(points);
 
       Echo();
-      var scaledDistances = ScaleDistancesToOutputImageWidth(distances, outputImageWidth);
+      var scaledDistances = ScaleDistancesToOutputImageWidth(distances, p.outputImageWidth);
 
       Echo();
       int newOutputImageWidth = GetNewOutputImageWidthFromScaledDistances(scaledDistances);
 
-      Echo("\r\n\r\nPrecision lost in pixels: " + (outputImageWidth - newOutputImageWidth), true);
+      Echo("\r\n\r\nPrecision lost in pixels: " + (p.outputImageWidth - newOutputImageWidth), true);
 
       Echo();
-      var finalDrawingPoints = GetFinalDrawingPoints(scaledDistances, scaledElevations, maxThresh);
+      var finalDrawingPoints = GetFinalDrawingPoints(scaledDistances, scaledElevations, p.maxThresh);
 
       Echo();
-      var image = DrawImage(finalDrawingPoints, newOutputImageWidth, minThresh, maxThresh, drawAsCurve);
+      var image = DrawImage(finalDrawingPoints, newOutputImageWidth, p.minThresh, p.maxThresh, p.drawAsCurve);
 
       Echo();
       var markedImage = MarkPointsWithVerticalLine(finalDrawingPoints, image);
 
       Echo("\r\n");
-      string outputFileName = guid + ".bmp";
+      string outputFileName = p.outputFilename + ".bmp";
       Echo("\r\n\r\nSaving image as \'" + outputFileName + "\'...", true);
       SaveImage(markedImage, outputFileName);
       Echo("\r\n\r\nSaved " + outputFileName, true);
 
-      File.WriteAllText(guid + ".log", log);
+      File.WriteAllText(p.outputFilename + ".log", _log);
 
-      if (openImageWhenComplete){System.Diagnostics.Process.Start(outputFileName);}
-      if (openLogWhenComplete){System.Diagnostics.Process.Start(guid + ".log");}
+      if (p.openImageWhenComplete) { System.Diagnostics.Process.Start(outputFileName); }
+      if (p.openLogWhenComplete) { System.Diagnostics.Process.Start(p.outputFilename + ".log"); }
 
       return 1;
     }
@@ -225,13 +259,13 @@ namespace TryGPX
 
       for (int i = 0; i < points.Count - 1; ++i)
       {
-        MyPoint p1 = points[i];
-        MyPoint p2 = points[i + 1];
+        var p1 = points[i];
+        var p2 = points[i + 1];
 
-        double latDiffSq = Math.Pow(p2.lat - p1.lat, 2);
-        double lonDiffSq = Math.Pow(p2.lon - p1.lon, 2);
+        var latDiffSq = Math.Pow(p2.lat - p1.lat, 2);
+        var lonDiffSq = Math.Pow(p2.lon - p1.lon, 2);
 
-        double d = Math.Sqrt(latDiffSq + lonDiffSq) * scale;
+        var d = Math.Sqrt(latDiffSq + lonDiffSq) * scale;
 
         distances.Add(d);
 
@@ -335,14 +369,18 @@ namespace TryGPX
 
     private static void Echo()
     {
-      Echo("\r\n" + outputStrings[echoIndex] + "...", true);
-      ++echoIndex;
+      Echo("\r\n" + outputStrings[_echoIndex] + "...", true);
+      ++_echoIndex;
     }
 
     private static void Echo(string s, bool forceShow = false)
     {
-      log += s;
-      if (verbose || forceShow){Console.WriteLine(s);}
+      if (_echoVerbose || forceShow)
+      {
+        Console.WriteLine(s);
+      }
+
+      _log += s;    
     }
 
     private static void Echo(double i)
