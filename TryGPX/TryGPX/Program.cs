@@ -5,6 +5,7 @@ using System.Linq;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Reflection;
+using System.Threading;
 
 namespace TryGPX
 {
@@ -84,8 +85,7 @@ namespace TryGPX
       }
       catch (Exception e)
       {
-        Console.WriteLine("Error processing args!");
-        Console.WriteLine(e.ToString());
+        Console.WriteLine("Error processing args!\r\n" + e);
         return -1;
       }
 
@@ -197,6 +197,7 @@ namespace TryGPX
 
     private static void PrintAllParameters(Parameters p)
     {
+      Echo("\r\n");
       PropertyInfo[] propertyInfo = p.GetType().GetProperties();
       foreach (var pi in propertyInfo)
       {
